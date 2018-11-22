@@ -98,8 +98,10 @@ IntegrityBlockStore2::IntegrityBlockStore2(unique_ref<BlockStore2> baseBlockStor
   if (_knownBlockVersions.integrityViolationInLastRun()) {
     throw std::runtime_error(string() +
                              "There was an integrity violation detected. Preventing any further access to the file system. " +
+                             "This can either happen if an attacker changed your files or rolled back the file system to a previous state, " +
+                             "but it can also happen if you rolled back the file system yourself, for example restored a backup. " +
                              "If you want to reset the integrity data (i.e. accept changes made by a potential attacker), " +
-                             "please unmount the file system and delete the following file before re-mounting it: " +
+                             "please delete the following file before re-mounting it: " +
                              _knownBlockVersions.path().string());
   }
 }
