@@ -61,14 +61,12 @@ private:
   static cpputils::Data _migrateBlock(const BlockId &blockId, const cpputils::Data &data);
 #endif
   static cpputils::Data _removeHeader(const cpputils::Data &data);
-  void _checkNoPastIntegrityViolations() const;
   void integrityViolationDetected(const std::string &reason) const;
 
   cpputils::unique_ref<BlockStore2> _baseBlockStore;
   mutable KnownBlockVersions _knownBlockVersions;
   const bool _allowIntegrityViolations;
   const bool _missingBlockIsIntegrityViolation;
-  mutable bool _integrityViolationDetected;
 
   DISALLOW_COPY_AND_ASSIGN(IntegrityBlockStore2);
 };

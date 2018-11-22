@@ -84,8 +84,18 @@ Data IntegrityBlockStore2::_removeHeader(const Data &data) {
   return data.copyAndRemovePrefix(HEADER_LENGTH);
 }
 
-void IntegrityBlockStore2::_checkNoPastIntegrityViolations() const {
-  if (_integrityViolationDetected) {
+void IntegrityBlockStore2::integrityViolationDetected(const string &reason) const {
+  if (_allowIntegrityViolations) {
+    LOG(WARN, "Integrity violation (but integrity checks are disabled): {}", reason);
+    return;
+  }
+  _knownBlockVersions.setIntegrityViolationInLastRun(true);
+  throw IntegrityViolationError(reason);
+}
+
+IntegrityBlockStore2::IntegrityBlockStore2(unique_ref<BlockStore2> baseBlockStore, const boost::filesystem::path &integrityFilePath, uint32_t myClientId, bool allowIntegrityViolations, bool missingBlockIsIntegrityViolation)
+: _baseBlockStore(std::move(baseBlockStore)), _knownBlockVersions(integrityFilePath, myClientId), _allowIntegrityViolations(allowIntegrityViolations), _missingBlockIsIntegrityViolation(missingBlockIsIntegrityViolation) {
+  if (_knownBlockVersions.integrityViolationInLastRun()) {
     throw std::runtime_error(string() +
                              "There was an integrity violation detected. Preventing any further access to the file system. " +
                              "If you want to reset the integrity data (i.e. accept changes made by a potential attacker), " +
@@ -94,34 +104,18 @@ void IntegrityBlockStore2::_checkNoPastIntegrityViolations() const {
   }
 }
 
-void IntegrityBlockStore2::integrityViolationDetected(const string &reason) const {
-  if (_allowIntegrityViolations) {
-    LOG(WARN, "Integrity violation (but integrity checks are disabled): {}", reason);
-    return;
-  }
-  _integrityViolationDetected = true;
-  throw IntegrityViolationError(reason);
-}
-
-IntegrityBlockStore2::IntegrityBlockStore2(unique_ref<BlockStore2> baseBlockStore, const boost::filesystem::path &integrityFilePath, uint32_t myClientId, bool allowIntegrityViolations, bool missingBlockIsIntegrityViolation)
-: _baseBlockStore(std::move(baseBlockStore)), _knownBlockVersions(integrityFilePath, myClientId), _allowIntegrityViolations(allowIntegrityViolations), _missingBlockIsIntegrityViolation(missingBlockIsIntegrityViolation), _integrityViolationDetected(false) {
-}
-
 bool IntegrityBlockStore2::tryCreate(const BlockId &blockId, const Data &data) {
-  _checkNoPastIntegrityViolations();
   uint64_t version = _knownBlockVersions.incrementVersion(blockId);
   Data dataWithHeader = _prependHeaderToData(blockId, _knownBlockVersions.myClientId(), version, data);
   return _baseBlockStore->tryCreate(blockId, dataWithHeader);
 }
 
 bool IntegrityBlockStore2::remove(const BlockId &blockId) {
-  _checkNoPastIntegrityViolations();
   _knownBlockVersions.markBlockAsDeleted(blockId);
   return _baseBlockStore->remove(blockId);
 }
 
 optional<Data> IntegrityBlockStore2::load(const BlockId &blockId) const {
-  _checkNoPastIntegrityViolations();
   auto loaded = _baseBlockStore->load(blockId);
   if (none == loaded) {
     if (_missingBlockIsIntegrityViolation && _knownBlockVersions.blockShouldExist(blockId)) {
@@ -154,7 +148,6 @@ Data IntegrityBlockStore2::_migrateBlock(const BlockId &blockId, const Data &dat
 #endif
 
 void IntegrityBlockStore2::store(const BlockId &blockId, const Data &data) {
-  _checkNoPastIntegrityViolations();
   uint64_t version = _knownBlockVersions.incrementVersion(blockId);
   Data dataWithHeader = _prependHeaderToData(blockId, _knownBlockVersions.myClientId(), version, data);
   return _baseBlockStore->store(blockId, dataWithHeader);
