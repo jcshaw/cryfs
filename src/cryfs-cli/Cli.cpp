@@ -224,17 +224,22 @@ namespace cryfs {
           LocalStateDir localStateDir(Environment::localStateDir());
           auto blockStore = make_unique_ref<OnDiskBlockStore2>(options.baseDir());
           auto config = _loadOrCreateConfig(options, localStateDir);
+          std::unique_ptr<fspp::fuse::Fuse> fuse;
+          auto onIntegrityViolation = [&fuse] () {
+              LOG(ERR, "Integrity violation detected. Unmounting.");
+              fuse->stop();
+          };
           CryDevice device(std::move(config.configFile), std::move(blockStore), std::move(localStateDir), config.myClientId,
-                           options.allowIntegrityViolations(), config.configFile.config()->missingBlockIsIntegrityViolation());
+                           options.allowIntegrityViolations(), config.configFile.config()->missingBlockIsIntegrityViolation(), std::move(onIntegrityViolation));
           _sanityCheckFilesystem(&device);
           fspp::FilesystemImpl fsimpl(&device);
-          fspp::fuse::Fuse fuse(&fsimpl, "cryfs", "cryfs@" + options.baseDir().string());
+          fuse = std::make_unique<fspp::fuse::Fuse>(&fsimpl, "cryfs", "cryfs@" + options.baseDir().string());
 
           _initLogfile(options);
 
           //TODO Test auto unmounting after idle timeout
           //TODO This can fail due to a race condition if the filesystem isn't started yet (e.g. passing --unmount-idle 0").
-          auto idleUnmounter = _createIdleCallback(options.unmountAfterIdleMinutes(), [&fuse] { fuse.stop(); });
+          auto idleUnmounter = _createIdleCallback(options.unmountAfterIdleMinutes(), [&fuse] { fuse->stop(); });
           if (idleUnmounter != none) {
             device.onFsAction(std::bind(&CallAfterTimeout::resetTimer, idleUnmounter->get()));
           }
@@ -245,7 +250,7 @@ namespace cryfs {
           std::cout << "\nMounting filesystem. To unmount, call:\n$ fusermount -u " << options.mountDir() << "\n"
                     << std::endl;
 #endif
-          fuse.run(options.mountDir(), options.fuseOptions());
+          fuse->run(options.mountDir(), options.fuseOptions());
         } catch (const CryfsException &e) {
             throw; // CryfsException is only thrown if setup goes wrong. Throw it through so that we get the correct process exit code.
         } catch (const std::exception &e) {

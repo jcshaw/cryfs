@@ -90,11 +90,11 @@ void IntegrityBlockStore2::integrityViolationDetected(const string &reason) cons
     return;
   }
   _knownBlockVersions.setIntegrityViolationInLastRun(true);
-  throw IntegrityViolationError(reason);
+  _onIntegrityViolation();
 }
 
-IntegrityBlockStore2::IntegrityBlockStore2(unique_ref<BlockStore2> baseBlockStore, const boost::filesystem::path &integrityFilePath, uint32_t myClientId, bool allowIntegrityViolations, bool missingBlockIsIntegrityViolation)
-: _baseBlockStore(std::move(baseBlockStore)), _knownBlockVersions(integrityFilePath, myClientId), _allowIntegrityViolations(allowIntegrityViolations), _missingBlockIsIntegrityViolation(missingBlockIsIntegrityViolation) {
+IntegrityBlockStore2::IntegrityBlockStore2(unique_ref<BlockStore2> baseBlockStore, const boost::filesystem::path &integrityFilePath, uint32_t myClientId, bool allowIntegrityViolations, bool missingBlockIsIntegrityViolation, std::function<void ()> onIntegrityViolation)
+: _baseBlockStore(std::move(baseBlockStore)), _knownBlockVersions(integrityFilePath, myClientId), _allowIntegrityViolations(allowIntegrityViolations), _missingBlockIsIntegrityViolation(missingBlockIsIntegrityViolation), _onIntegrityViolation(std::move(onIntegrityViolation)) {
   if (_knownBlockVersions.integrityViolationInLastRun()) {
     throw std::runtime_error(string() +
                              "There was an integrity violation detected. Preventing any further access to the file system. " +

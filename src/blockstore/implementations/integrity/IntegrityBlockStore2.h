@@ -5,7 +5,6 @@
 #include "../../interface/BlockStore2.h"
 #include <cpp-utils/macros.h>
 #include "KnownBlockVersions.h"
-#include "IntegrityViolationError.h"
 
 namespace blockstore {
 namespace integrity {
@@ -16,7 +15,7 @@ namespace integrity {
 // It depends on being used on top of an encrypted block store that protects integrity of the block contents (i.e. uses an authenticated cipher).
 class IntegrityBlockStore2 final: public BlockStore2 {
 public:
-  IntegrityBlockStore2(cpputils::unique_ref<BlockStore2> baseBlockStore, const boost::filesystem::path &integrityFilePath, uint32_t myClientId, bool allowIntegrityViolations, bool missingBlockIsIntegrityViolation);
+  IntegrityBlockStore2(cpputils::unique_ref<BlockStore2> baseBlockStore, const boost::filesystem::path &integrityFilePath, uint32_t myClientId, bool allowIntegrityViolations, bool missingBlockIsIntegrityViolation, std::function<void ()> onIntegrityViolation);
 
   bool tryCreate(const BlockId &blockId, const cpputils::Data &data) override;
   bool remove(const BlockId &blockId) override;
@@ -67,6 +66,7 @@ private:
   mutable KnownBlockVersions _knownBlockVersions;
   const bool _allowIntegrityViolations;
   const bool _missingBlockIsIntegrityViolation;
+  std::function<void ()> _onIntegrityViolation;
 
   DISALLOW_COPY_AND_ASSIGN(IntegrityBlockStore2);
 };
