@@ -48,7 +48,7 @@ KnownBlockVersions::~KnownBlockVersions() {
 }
 
 void KnownBlockVersions::setIntegrityViolationInLastRun(bool value) {
-    _integrityViolationInLastRun = true;
+    _integrityViolationInLastRun = value;
 }
 
 bool KnownBlockVersions::integrityViolationInLastRun() const {
