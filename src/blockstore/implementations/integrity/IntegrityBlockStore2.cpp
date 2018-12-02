@@ -36,10 +36,9 @@ Data IntegrityBlockStore2::_prependHeaderToData(const BlockId& blockId, uint32_t
   return result;
 }
 
-void IntegrityBlockStore2::_checkHeader(const BlockId &blockId, const Data &data) const {
+bool IntegrityBlockStore2::_checkHeader(const BlockId &blockId, const Data &data) const {
   _checkFormatHeader(data);
-  _checkIdHeader(blockId, data);
-  _checkVersionHeader(blockId, data);
+  return _checkIdHeader(blockId, data) && _checkVersionHeader(blockId, data);
 }
 
 void IntegrityBlockStore2::_checkFormatHeader(const Data &data) const {
@@ -48,20 +47,26 @@ void IntegrityBlockStore2::_checkFormatHeader(const Data &data) const {
   }
 }
 
-void IntegrityBlockStore2::_checkVersionHeader(const BlockId &blockId, const Data &data) const {
+bool IntegrityBlockStore2::_checkVersionHeader(const BlockId &blockId, const Data &data) const {
   uint32_t clientId = _readClientId(data);
   uint64_t version = _readVersion(data);
 
   if(!_knownBlockVersions.checkAndUpdateVersion(clientId, blockId, version)) {
     integrityViolationDetected("The block version number is too low. Did an attacker try to roll back the block or to re-introduce a deleted block?");
+    return false;
   }
+
+  return true;
 }
 
-void IntegrityBlockStore2::_checkIdHeader(const BlockId &expectedBlockId, const Data &data) const {
+bool IntegrityBlockStore2::_checkIdHeader(const BlockId &expectedBlockId, const Data &data) const {
   BlockId actualBlockId = _readBlockId(data);
   if (expectedBlockId != actualBlockId) {
     integrityViolationDetected("The block id is wrong. Did an attacker try to rename some blocks?");
+    return false;
   }
+
+  return true;
 }
 
 uint16_t IntegrityBlockStore2::_readFormatHeader(const Data &data) {
@@ -128,13 +133,17 @@ optional<Data> IntegrityBlockStore2::load(const BlockId &blockId) const {
 #ifndef CRYFS_NO_COMPATIBILITY
   if (FORMAT_VERSION_HEADER_OLD == _readFormatHeader(*loaded)) {
     Data migrated = _migrateBlock(blockId, *loaded);
-    _checkHeader(blockId, migrated);
+    if (!_checkHeader(blockId, migrated) && !_allowIntegrityViolations) {
+      return optional<Data>(none);
+    }
     Data content = _removeHeader(migrated);
     const_cast<IntegrityBlockStore2*>(this)->store(blockId, content);
     return optional<Data>(_removeHeader(migrated));
   }
 #endif
-  _checkHeader(blockId, *loaded);
+  if (!_checkHeader(blockId, *loaded) && !_allowIntegrityViolations) {
+    return optional<Data>(none);
+  }
   return optional<Data>(_removeHeader(*loaded));
 }
 

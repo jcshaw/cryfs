@@ -48,10 +48,10 @@ public:
 private:
 
   static cpputils::Data _prependHeaderToData(const BlockId &blockId, uint32_t myClientId, uint64_t version, const cpputils::Data &data);
-  void _checkHeader(const BlockId &blockId, const cpputils::Data &data) const;
+  WARN_UNUSED_RESULT bool _checkHeader(const BlockId &blockId, const cpputils::Data &data) const;
   void _checkFormatHeader(const cpputils::Data &data) const;
-  void _checkIdHeader(const BlockId &expectedBlockId, const cpputils::Data &data) const;
-  void _checkVersionHeader(const BlockId &blockId, const cpputils::Data &data) const;
+  WARN_UNUSED_RESULT bool _checkIdHeader(const BlockId &expectedBlockId, const cpputils::Data &data) const;
+  WARN_UNUSED_RESULT bool _checkVersionHeader(const BlockId &blockId, const cpputils::Data &data) const;
   static uint16_t _readFormatHeader(const cpputils::Data &data);
   static uint32_t _readClientId(const cpputils::Data &data);
   static BlockId _readBlockId(const cpputils::Data &data);
